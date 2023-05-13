@@ -1,5 +1,4 @@
-# wx_reports
-Simple ESX script for reports
+![standard (10)](https://github.com/nwvh/wx_reports/assets/76164598/5697216b-1c8a-4fc1-9e40-21a911d213d2)
 
 # Showcase
 ![image](https://github.com/nwvh/wx_reports/assets/76164598/39fb7944-49be-492a-aa1f-02413c998445)
