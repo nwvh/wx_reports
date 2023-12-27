@@ -1,3 +1,6 @@
+# UNSUPPORTED
+## This project has been archived because this resource is old, consider using [wx_rpchat](https://github.com/nwvh/wx_rpchat) which has better and more up-to-date built-in reports and admin chat
+
 ![standard (10)](https://github.com/nwvh/wx_reports/assets/76164598/5697216b-1c8a-4fc1-9e40-21a911d213d2)
 
 # Showcase
