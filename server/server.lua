@@ -1,93 +1,212 @@
 ESX = exports["es_extended"]:getSharedObject()
+lib.locale()
 
-if wx.enableAdminChat then
-	RegisterCommand("a", function(source, args, rawCommand)
-		if source ~= 0 then
-			local xPlayer = ESX.GetPlayerFromId(source)
-			local username = GetPlayerName(source)
-			if havePermission(xPlayer) then
-				if args[1] then
-					local message = string.sub(rawCommand, 3)
-					local xAll = ESX.GetPlayers()
-					for i=1, #xAll, 1 do
-						local xTarget = ESX.GetPlayerFromId(xAll[i])
-						if havePermission(xTarget) then
-							TriggerClientEvent('chat:addMessage', xTarget.source, {
-								template = '<div style="padding: 0.4vw; margin: 0.4vw; background-color: rgba(24, 26, 32, 0.45); border-radius: 3px; border-right: 0px solid rgb(180, 0, 0);"><font style="padding: 0.22vw; margin: 0.22vw; background-color: rgb(180, 30, 30); border-radius: 5px; font-size: 15px;"> <b>ADMIN CHAT</b></font>   <font style="background-color:rgba(0, 0, 0, 0); font-size: 17px; margin-left: 0px; padding-bottom: 2.5px; padding-left: 3.5px; padding-top: 2.5px; padding-right: 3.5px;border-radius: 0px;"> <b> [' ..source.. '] '..username..': </b></font>  <font style=" font-weight: 800; font-size: 15px; margin-left: 5px; padding-bottom: 3px; border-radius: 0px;"><b></b></font><font style=" font-weight: 200; font-size: 14px; border-radius: 0px;">'..message..'</font></div>',
-									args = {}
-								})
-						end
-					end
-				else
-					TriggerClientEvent('chat:addMessage', xPlayer.source, {
-						template = '<div style="padding: 0.4vw; margin: 0.4vw; background-color: rgba(24, 26, 32, 0.45); border-radius: 3px; border-right: 0px solid rgb(180, 0, 0);"><font style="padding: 0.22vw; margin: 0.22vw; background-color: rgb(180, 30, 30); border-radius: 5px; font-size: 15px;"> <b>ERROR</b></font>   <font style="background-color:rgba(0, 0, 0, 0); font-size: 17px; margin-left: 0px; padding-bottom: 2.5px; padding-left: 3.5px; padding-top: 2.5px; padding-right: 3.5px;border-radius: 0px;"> <b></b></font>  <font style=" font-weight: 800; font-size: 15px; margin-left: 5px; padding-bottom: 3px; border-radius: 0px;"><b></b></font><font style=" font-weight: 200; font-size: 14px; border-radius: 0px;">Message cannot be empty!</font></div>',
-							args = {}
-						})
-				end
-			end
-		end
-	end, false)
+local reports = {}
+function Notify(id,data)
+    TriggerClientEvent('ox_lib:notify', id, data)
 end
 
-function havePermission(xPlayer)
-	local group = xPlayer.getGroup()
-	for _,v in pairs(wx.AdminGroups) do
-		if v == group then
-			return true
-		end
-	end
-	return false
-end
-
-ESX.RegisterServerCallback('wx_reports:getPlayerGroup', function(source, cb)
-	local xPlayer = ESX.GetPlayerFromId(tonumber(source))
-	if xPlayer then
-		local playergroup = xPlayer.getGroup()
-		cb(tostring(playergroup))
-	else
-		cb('user')
-	end
+lib.callback.register('wx_reports:getCoords', function(source,target)
+    return GetEntityCoords(GetPlayerPed(target))
 end)
 
-RegisterCommand("report", function(source, args, raw)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local name = GetPlayerName(source)
-	local content = table.concat(args, " ")
-	TriggerClientEvent("wx_reports:send", -1, source, name, content)
-	if wx.UseWebhooks and content ~= '' then
-		reportDiscord("New Report Received", source,name,content, "💜 wx_reports - [github.com/nwvh/wx_reports]")
-	end
-end, false)
+lib.callback.register('wx_reports:bringPlayer', function(source,target)
+    return SetEntityCoords(GetPlayerPed(target),GetEntityCoords(GetPlayerPed(source)))
+end)
 
-function reportDiscord(title, playerID, playerName, reportmessage, footer)
-  local embed = {
-        {
-            ["color"] = wx.WebhookColor,
-            ["title"] = "**".. title .."**",
-			["fields"] = {
-        {
-          ["name"]= "Player ID",
-          ["value"]= playerID,
-          ["inline"] = false
-        },
-        {
-          ["name"]= "Player Name",
-          ["value"]= playerName,
-          ["inline"] = false
-        },
-        {
-          ["name"]= "Report Message",
-          ["value"]= reportmessage,
-          ["inline"] = false
-        },
-	},
-            ["description"] = message,
-            ["footer"] = {
-                ["text"] = footer,
+lib.callback.register('wx_reports:messagePlayer', function(source,target,reportid,message)
+    Notify(target,{
+        title = locale("replyNotifTitle",reportid),
+        description = ("%s: **%s**"):format(GetPlayerName(source),message),
+        icon = "comment",
+        iconAnimation = "beatFade",
+        iconColor = '#C53030',
+        position = "top",
+        duration = 10000
+    })
+    TriggerClientEvent('wx_reports:sound',target)
+
+end)
+
+
+lib.callback.register('wx_reports:isAdmin', function()
+    local xPlayer = ESX.GetPlayerFromId(source)
+    return wx.AdminGroups[xPlayer.getGroup()]
+end)
+
+lib.callback.register('wx_reports:getReports', function()
+    return reports
+end)
+
+lib.callback.register('wx_reports:getPlayerReports', function(source)
+    local count = 0
+    for k,v in pairs(reports) do
+        if v.playerid == source and v.status == "Active" then
+            count = count + 1
+        end
+    end
+    return count
+end)
+
+lib.callback.register('wx_reports:completeReport', function(source,reportid)
+    for k,v in pairs(reports) do
+        if v.reportid == reportid then
+            v.status = locale("title")
+            Notify(source,{
+                title = locale("completeNotifTitle"),
+                description = locale("completeNotifDesc",v.reportid),
+                icon = "flag",
+                iconAnimation = "beat",
+                iconColor = wx.DefaultColor,
+                duration = 4000
+            })
+            Notify(v.playerid,{
+                title = locale("completeNotifTitle"),
+                description = locale("completeNotifDescPlayer",v.reportid,GetPlayerName(source)),
+                icon = "flag",
+                iconAnimation = "beat",
+                iconColor = wx.DefaultColor,
+                duration = 10000
+            })
+            if wx.Sounds.Other then
+                TriggerClientEvent('wx_reports:sound',v.playerid)
+            end
+            Log(wx.Webhooks.Completed,{
+                title = ("Report Completed - [#%s]"):format(v.reportid),
+                fields = {
+                    {
+                        ["name"]= "Admin Name",
+                        ["value"]= GetPlayerName(source),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Reporter Name",
+                        ["value"]= GetPlayerName(v.playerid),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Report Title",
+                        ["value"]= v.title,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Report Message",
+                        ["value"]= v.message,
+                        ["inline"] = true
+                    },
+                }
+            })
+            break
+        end
+    end
+
+end)
+
+lib.callback.register('wx_reports:deleteReport', function(source,reportid)
+    for k,v in pairs(reports) do
+        if v.reportid == reportid then
+            table.remove(reports,k)
+            Notify(source,{
+                title = locale("deleteNotifTitle"),
+                description = locale("deleteNotifDesc",v.reportid),
+                icon = "flag",
+                iconAnimation = "beat",
+                iconColor = '#C53030',
+                duration = 4000
+            })
+            Notify(v.playerid,{
+                title = locale("deleteNotifTitlePlayer"),
+                description = locale("deleteNotifDescPlayer",v.reportid,GetPlayerName(source)),
+                icon = "flag",
+                iconAnimation = "beat",
+                iconColor = '#C53030',
+                duration = 10000
+            })
+            if wx.Sounds.Other then
+                TriggerClientEvent('wx_reports:sound',v.playerid)
+            end
+            Log(wx.Webhooks.Deleted,{
+                title = ("Report Deleted - [#%s]"):format(v.reportid),
+                fields = {
+                    {
+                        ["name"]= "Admin Name",
+                        ["value"]= GetPlayerName(source),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Reporter Name",
+                        ["value"]= GetPlayerName(v.playerid),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Report Title",
+                        ["value"]= v.title,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"]= "Report Message",
+                        ["value"]= v.message,
+                        ["inline"] = true
+                    },
+                }
+            })
+            
+            break
+        end
+    end
+
+end)
+
+lib.callback.register('wx_reports:sendReport',function (source,data)
+    local playername = GetPlayerName(source)
+    local playerid = source
+    local title = data.title
+    local message = data.message
+    local xPlayers = ESX.GetPlayers()
+    table.insert(reports,{
+        reportid = #reports+1,
+        playername = GetPlayerName(source),
+        playerid = source,
+        title = data.title,
+        message = data.message,
+        time = os.date("%H:%M"),
+        status = "Active",
+        ped = GetPlayerPed(playerid)
+    })
+    Log(wx.Webhooks.Received,{
+        title = ("New Report Received - [#%s]"):format(#reports),
+        fields = {
+            {
+                ["name"]= "Player Name",
+                ["value"]= GetPlayerName(playerid),
+                ["inline"] = true
+            },
+            {
+                ["name"]= "Report Title",
+                ["value"]= title,
+                ["inline"] = true
+            },
+            {
+                ["name"]= "Report Message",
+                ["value"]= message,
+                ["inline"] = true
             },
         }
-    }
-
-  PerformHttpRequest(wx.Webhook, function(err, text, headers) end, 'POST', json.encode({username = wx.WebHookName, embeds = embed}), { ['Content-Type'] = 'application/json' })
-end
-
+    })
+    for i=1, #xPlayers, 1 do
+        local xPlayer = ESX.GetPlayerFromId(xPlayers[i])
+        if wx.AdminGroups[xPlayer.getGroup()] then
+            Notify(xPlayers[i],{
+                title = locale("newReportTitle"),
+                description = locale("newReportDesc",playerid,playername,title,message),
+                duration = 10000,
+                icon = "flag",
+                iconAnimation = "beat",
+                iconColor = wx.DefaultColor,
+            })
+            if wx.Sounds.NewReport then
+                TriggerClientEvent('wx_reports:sound',xPlayers[i])
+            end
+        end
+    end
+end)

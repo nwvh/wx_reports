@@ -1,14 +1,20 @@
 fx_version 'cerulean'
-description '[ESX] Simple chat-based report system for your FiveM Server'
 game 'gta5'
+version '1.0.0'
 lua54 'yes'
-
-server_scripts {
-	'configs/*',
-	'server/*.lua'
-}
+author 'wx / woox'
+description 'Advanced report system utilised via OX Lib'
 
 client_scripts {
-	'configs/*',
-	'client/*.lua'
+    'client/*.lua'
 }
+
+server_scripts {
+    'server/*.lua',
+}
+
+files {
+    'locales/*.json'
+}
+
+shared_scripts {'@ox_lib/init.lua','configs/*.lua'}
