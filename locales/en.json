@@ -66,5 +66,6 @@
   "completeNotifDescPlayer": "Your report with ID #**%s** has been resolved by admin %s",
   "completeNotifTitle": "Report Resolved",
   "yourReports": "Your Reports",
-  "yourReport": "Your Report - [#%s]"
+  "yourReport": "Your Report - [#%s]",
+  "chatSuggestion": "Opens report menu"
 }

@@ -66,5 +66,6 @@
   "completeNotifDescPlayer": "Tvůj report s ID #**%s** byl vyřešen adminem %s",
   "completeNotifTitle": "Report Vyřešen",
   "yourReports": "Tvoje Reporty",
-  "yourReport": "Tvůj Report - [#%s]"
+  "yourReport": "Tvůj Report - [#%s]",
+  "chatSuggestion": "Otevře menu pro reporty"
 }

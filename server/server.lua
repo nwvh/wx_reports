@@ -68,9 +68,33 @@ lib.callback.register(
                 duration = 10000
             }
         )
+        Log(
+            wx.Webhooks.Reply,
+            {
+                title = ("Reply to Report - [#%s]"):format(reportid),
+                fields = {
+                    {
+                        ["name"] = "Admin Name",
+                        ["value"] = GetPlayerName(source),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "Reporter Name",
+                        ["value"] = GetPlayerName(v.playerid),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "Message",
+                        ["value"] = message,
+                        ["inline"] = true
+                    }
+                }
+            }
+        )
         TriggerClientEvent("wx_reports:sound", target)
     end
 )
+
 
 lib.callback.register(
     "wx_reports:isAdmin",

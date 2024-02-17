@@ -899,3 +899,5 @@ RegisterCommand(wx.Command,function()
     )
     lib.showContext("reportmenu")
 end,false)
+
+TriggerEvent('chat:addSuggestion', ('/%s'):format(wx.Command), locale("chatSuggestion"), {})
