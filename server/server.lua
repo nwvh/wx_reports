@@ -1,3 +1,14 @@
+local function isAdmin(playerId)
+    for k,v in pairs(wx.AllowedIds) do
+        for _,id in pairs(GetPlayerIdentifiers(playerId)) do
+            if id == v then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 lib.callback.register(
     "wx_reports:isAdmin",
     function(source)
@@ -6,14 +17,7 @@ lib.callback.register(
             local xPlayer = ESX.GetPlayerFromId(source)
             return wx.AdminGroups[xPlayer.getGroup()]
         else
-            for k,v in pairs(wx.AllowedIds) do
-                for _,id in pairs(GetPlayerIdentifiers(source)) do
-                    if id == v then
-                        return true
-                    end
-                end
-            end
-            return false
+            return isAdmin(source)
         end
     end
 )
@@ -346,7 +350,6 @@ lib.callback.register(
         local playerid = source
         local title = data.title
         local message = data.message
-        local xPlayers = ESX.GetPlayers()
         table.insert(
             reports,
             {
@@ -400,22 +403,44 @@ lib.callback.register(
                 }
             }
         )
-        for i = 1, #xPlayers, 1 do
-            local xPlayer = ESX.GetPlayerFromId(xPlayers[i])
-            if wx.AdminGroups[xPlayer.getGroup()] then
-                Notify(
-                    xPlayers[i],
-                    {
-                        title = locale("newReportTitle"),
-                        description = locale("newReportDesc", playerid, playername, title, message),
-                        duration = 10000,
-                        icon = "flag",
-                        iconAnimation = "beat",
-                        iconColor = wx.DefaultColor
-                    }
-                )
-                if wx.Sounds.NewReport then
-                    TriggerClientEvent("wx_reports:sound", xPlayers[i])
+        if wx.Framework:lower() == "esx" then
+            local xPlayers = ESX.GetPlayers()
+            for i = 1, #xPlayers, 1 do
+                local xPlayer = ESX.GetPlayerFromId(xPlayers[i])
+                if wx.AdminGroups[xPlayer.getGroup()] then
+                    Notify(
+                        xPlayers[i],
+                        {
+                            title = locale("newReportTitle"),
+                            description = locale("newReportDesc", playerid, playername, title, message),
+                            duration = 10000,
+                            icon = "flag",
+                            iconAnimation = "beat",
+                            iconColor = wx.DefaultColor
+                        }
+                    )
+                    if wx.Sounds.NewReport then
+                        TriggerClientEvent("wx_reports:sound", xPlayers[i])
+                    end
+                end
+            end
+        else
+            for k,id in pairs(GetPlayers()) do
+                if isAdmin(id) then
+                    Notify(
+                        id,
+                        {
+                            title = locale("newReportTitle"),
+                            description = locale("newReportDesc", playerid, playername, title, message),
+                            duration = 10000,
+                            icon = "flag",
+                            iconAnimation = "beat",
+                            iconColor = wx.DefaultColor
+                        }
+                    )
+                    if wx.Sounds.NewReport then
+                        TriggerClientEvent("wx_reports:sound", id)
+                    end
                 end
             end
         end

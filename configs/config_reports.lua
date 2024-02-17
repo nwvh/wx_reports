@@ -2,12 +2,14 @@ wx = {}
 
 wx.Framework = "standalone" -- [standalone/esx] If you use ESX, set the groups below, if you choose to use standalone, add your admin identifiers in wx.AllowedIds
 
+-- For ESX
 wx.AdminGroups = { -- ESX admin groups
     ["admin"] = true
 }
 
+-- For Standalone
 wx.AllowedIds = { -- Identifiers that count as admins. Identifier type doesn't matter, just make sure your admins have them linked
-    "discord:123",
+    "discord:1115986103988650035",
     "license:456"
 }
 
