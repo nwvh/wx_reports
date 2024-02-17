@@ -2,6 +2,7 @@ lib.callback.register(
     "wx_reports:isAdmin",
     function(source)
         if wx.Framework:lower() == "esx" then
+            ESX = exports["es_extended"]:getSharedObject()
             local xPlayer = ESX.GetPlayerFromId(source)
             return wx.AdminGroups[xPlayer.getGroup()]
         else
