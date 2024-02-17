@@ -1,4 +1,22 @@
-ESX = exports["es_extended"]:getSharedObject()
+lib.callback.register(
+    "wx_reports:isAdmin",
+    function(source)
+        if wx.Framework:lower() == "esx" then
+            local xPlayer = ESX.GetPlayerFromId(source)
+            return wx.AdminGroups[xPlayer.getGroup()]
+        else
+            for k,v in pairs(wx.AllowedIds) do
+                for _,id in pairs(GetPlayerIdentifiers(source)) do
+                    if id == v then
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+    end
+)
+
 lib.locale()
 
 local reports = {}
@@ -92,15 +110,6 @@ lib.callback.register(
             }
         )
         TriggerClientEvent("wx_reports:sound", target)
-    end
-)
-
-
-lib.callback.register(
-    "wx_reports:isAdmin",
-    function()
-        local xPlayer = ESX.GetPlayerFromId(source)
-        return wx.AdminGroups[xPlayer.getGroup()]
     end
 )
 

@@ -1,7 +1,14 @@
 wx = {}
 
+wx.Framework = "standalone" -- [standalone/esx] If you use ESX, set the groups below, if you choose to use standalone, add your admin identifiers in wx.AllowedIds
+
 wx.AdminGroups = { -- ESX admin groups
     ["admin"] = true
+}
+
+wx.AllowedIds = { -- Identifiers that count as admins. Identifier type doesn't matter, just make sure your admins have them linked
+    "discord:123",
+    "license:456"
 }
 
 wx.Command = "report"                           -- Report menu command
