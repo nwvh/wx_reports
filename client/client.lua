@@ -103,6 +103,7 @@ RegisterCommand(wx.Command,function()
                     onSelect = function()
                         local playerReports = lib.callback.await("wx_reports:getPlayerReports")
                         local opt = {}
+                        
                         for k, v in pairs(playerReports) do
                             if v.admin ~= locale("none") then
                                 table.insert(
@@ -237,6 +238,15 @@ RegisterCommand(wx.Command,function()
                         local reports = lib.callback.await("wx_reports:getReports")
                         local opt = {}
                         local completed = {}
+
+                            table.insert(
+                                opt,
+                                {
+                                    title = locale("completedReports"),
+                                    description = locale("completedReportsDesc"),
+                                    menu = "completed"
+                                }
+                            )   
                         if #reports == 0 then
                             opt = {
                                 {
@@ -534,6 +544,7 @@ RegisterCommand(wx.Command,function()
                             )
                         end
                         for k, v in pairs(reports) do
+                            
                             if v.status == locale("completed") then
                                 table.insert(
                                     completed,
@@ -596,21 +607,7 @@ RegisterCommand(wx.Command,function()
                                         end
                                     }
                                 )
-                                lib.registerContext(
-                                    {
-                                        id = "completed",
-                                        title = locale("completedReports"),
-                                        options = completed
-                                    }
-                                )
-                                table.insert(
-                                    opt,
-                                    {
-                                        title = locale("completedReports"),
-                                        description = locale("completedReportsDesc"),
-                                        menu = "completed"
-                                    }
-                                )
+                                
                             else
                                 if v.admin ~= locale("none") then
                                     table.insert(
@@ -892,7 +889,15 @@ RegisterCommand(wx.Command,function()
                             }
                         )
                         lib.showContext("adminreports")
+                        lib.registerContext(
+                            {
+                                id = "completed",
+                                title = locale("completedReports"),
+                                options = completed
+                            }
+                        )
                     end
+                    
                 }
             }
         }
