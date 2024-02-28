@@ -164,6 +164,7 @@ lib.callback.register(
                 }
             }
         )
+        CheckSQL(source)
         MySQL.update.await('UPDATE wx_reports SET replied_reports = replied_reports + 1 WHERE admin_identifier = ?', {
             GetPlayerIdentifierByType(source,'license')
         })
@@ -310,6 +311,7 @@ lib.callback.register(
                         }
                     }
                 )
+                CheckSQL(source)
                 MySQL.update.await('UPDATE wx_reports SET resolved_reports = resolved_reports + 1 WHERE admin_identifier = ?', {
                     GetPlayerIdentifierByType(source,'license')
                 })
