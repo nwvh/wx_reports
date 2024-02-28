@@ -1,6 +1,10 @@
 wx = {}
 
-wx.Framework = "standalone" -- [standalone/esx] If you use ESX, set the groups below, if you choose to use standalone, add your admin identifiers in wx.AllowedIds
+wx.Framework = "esx" -- [standalone/esx] If you use ESX, set the groups below, if you choose to use standalone, add your admin identifiers in wx.AllowedIds
+
+wx.Statistics = {
+    enable = true, -- Enable report statistics, admins will be able to see count of reports completed by other admins. You will need to import the SQL file
+}
 
 -- For ESX
 wx.AdminGroups = { -- ESX admin groups

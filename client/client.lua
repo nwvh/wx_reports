@@ -22,6 +22,730 @@ end
 RegisterCommand(wx.Command,function()
     local isAdmin = lib.callback.await("wx_reports:isAdmin")
     local reportCount = lib.callback.await("wx_reports:getPlayerReportCount")
+    lib.registerContext({
+        id = "reports_admins",
+        title = locale("adminSection"),
+        options = {
+            {
+                title = locale("leaderboardTitle"),
+                icon = "chart-simple",
+                arrow = true,
+                disabled = not isAdmin and not wx.Statistics.enable,
+                onSelect = function ()
+                    local opt = {}
+                    local stats = lib.callback.await("wx_reports:getStats")
+                    local license = lib.callback.await("wx_reports:getLicense")
+                    table.sort(stats, function(a, b) return a.resolved > b.resolved end)
+                    for k,v in pairs(stats) do
+                        if v.license == license then
+                            table.insert(opt,{
+                                title = locale("leaderboardSelf"),
+                                metadata = {
+                                    {
+                                        label = locale("leaderboardSelfResolved"),
+                                        value = v.resolved
+                                    },
+                                    {
+                                        label = locale("leaderboardSelfReplied"),
+                                        value = v.replied
+                                    },
+                                },
+                            })
+                        end
+                        break
+                    end
+                    table.insert(opt,{
+                        title = locale("leaderboardMostResolved",stats[1].adminName,stats[1].resolved)
+                    })
+
+                    table.sort(stats, function(a, b) return a.replied > b.replied end)
+
+                    table.insert(opt,{
+                        title = locale("leaderboardMostReplied",stats[1].adminName,stats[1].replied)
+                    })
+                    lib.registerContext({
+                        id = "report_stats",
+                        title = locale("leaderboardTitle"),
+                        options = opt
+                    })
+                    lib.showContext("report_stats")
+                end
+            },
+            {
+                title = locale("allReports"),
+                icon = "list",
+                disabled = not isAdmin,
+                arrow = true,
+                onBack = function()
+                    lib.showContext("reportmenu")
+                end,
+                onSelect = function()
+                    local reports = lib.callback.await("wx_reports:getReports")
+                    local opt = {}
+                    local completed = {}
+
+                        table.insert(
+                            opt,
+                            {
+                                title = locale("completedReports"),
+                                description = locale("completedReportsDesc"),
+                                menu = "completed"
+                            }
+                        )   
+                    if #reports == 0 then
+                        opt = {
+                            {
+                                title = locale("noReports"),
+                                disabled = true
+                            }
+                        }
+                    else
+                        table.insert(
+                            opt,
+                            {
+                                title = locale("sort"),
+                                description = locale("sortDesc"),
+                                icon = "arrow-up-1-9",
+                                onSelect = function()
+                                    local sort =
+                                        lib.inputDialog(
+                                        locale("sort"),
+                                        {
+                                            {
+                                                type = "number",
+                                                label = locale("id"),
+                                                description = locale("idDesc"),
+                                                icon = "hashtag"
+                                            }
+                                        }
+                                    )
+                                    local sortopt = {}
+                                    local sortedreports =
+                                        lib.callback.await("wx_reports:getSortedReports", nil, sort[1])
+                                    print(json.encode(sortedreports, {indent = true}))
+                                    if #sortedreports == 0 then
+                                        table.insert(
+                                            sortopt,
+                                            {
+                                                title = locale("noReportsFound"),
+                                                disabled = true
+                                            }
+                                        )
+                                        lib.registerContext(
+                                            {
+                                                id = "sortedReports",
+                                                title = locale("sortedReports"),
+                                                options = sortopt
+                                            }
+                                        )
+                                        lib.showContext("sortedReports")
+                                    else
+                                        for _, sortdata in pairs(sortedreports) do
+                                            if sortdata.status == locale("completed") then
+                                                table.insert(
+                                                    sortopt,
+                                                    {
+                                                        title = ("[#%s] %s"):format(
+                                                            sortdata.reportid,
+                                                            sortdata.title
+                                                        ),
+                                                        description = ('"%s"'):format(sortdata.message),
+                                                        metadata = {
+                                                            {
+                                                                label = locale("receivedAt"),
+                                                                value = sortdata.time
+                                                            },
+                                                            {
+                                                                label = locale("playerId"),
+                                                                value = sortdata.playerid
+                                                            },
+                                                            {
+                                                                label = locale("playerName"),
+                                                                value = sortdata.playername
+                                                            },
+                                                            {label = locale("admin"), value = sortdata.admin},
+                                                            {label = locale("status"), value = sortdata.status}
+                                                        },
+                                                        onSelect = function()
+                                                            lib.registerContext(
+                                                                {
+                                                                    id = "reportactions_" .. sortdata.reportid,
+                                                                    title = locale("completedReports"),
+                                                                    menu = "adminreports",
+                                                                    options = {
+                                                                        {
+                                                                            title = locale("reopen"),
+                                                                            icon = "arrow-rotate-left",
+                                                                            onSelect = function()
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:reopenReport",
+                                                                                    nil,
+                                                                                    sortdata.reportid
+                                                                                )
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("teleport"),
+                                                                            icon = "street-view",
+                                                                            onSelect = function()
+                                                                                local to =
+                                                                                    lib.callback.await(
+                                                                                    "wx_reports:getCoords",
+                                                                                    nil,
+                                                                                    sortdata.playerid
+                                                                                )
+                                                                                SetEntityCoords(cache.ped, to)
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("bring"),
+                                                                            icon = "map-location-dot",
+                                                                            onSelect = function()
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:bringPlayer",
+                                                                                    nil,
+                                                                                    sortdata.playerid
+                                                                                )
+                                                                            end
+                                                                        }
+                                                                    }
+                                                                }
+                                                            )
+                                                            lib.showContext(
+                                                                "reportactions_" .. sortdata.reportid
+                                                            )
+                                                        end
+                                                    }
+                                                )
+                                            else
+                                                table.insert(
+                                                    sortopt,
+                                                    {
+                                                        title = ("[#%s] %s"):format(
+                                                            sortdata.reportid,
+                                                            sortdata.title
+                                                        ),
+                                                        description = ("[%s] %s: '%s'"):format(
+                                                            sortdata.playerid,
+                                                            sortdata.playername,
+                                                            sortdata.message
+                                                        ),
+                                                        icon = "user-tie",
+                                                        metadata = {
+                                                            {
+                                                                label = locale("receivedAt"),
+                                                                value = sortdata.time
+                                                            },
+                                                            {
+                                                                label = locale("playerId"),
+                                                                value = sortdata.playerid
+                                                            },
+                                                            {
+                                                                label = locale("playerName"),
+                                                                value = sortdata.playername
+                                                            },
+                                                            {label = locale("admin"), value = sortdata.admin},
+                                                            {label = locale("status"), value = sortdata.status}
+                                                        },
+                                                        onSelect = function()
+                                                            local rid = sortdata.reportid
+                                                            lib.registerContext(
+                                                                {
+                                                                    id = "reportactions_" .. sortdata.reportid,
+                                                                    title = locale("manageReport", rid),
+                                                                    menu = "adminreports",
+                                                                    options = {
+                                                                        {
+                                                                            title = locale("take"),
+                                                                            icon = "handshake-simple",
+                                                                            onSelect = function()
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:takeReport",
+                                                                                    nil,
+                                                                                    sortdata.reportid
+                                                                                )
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("teleport"),
+                                                                            icon = "street-view",
+                                                                            onSelect = function()
+                                                                                local to =
+                                                                                    lib.callback.await(
+                                                                                    "wx_reports:getCoords",
+                                                                                    nil,
+                                                                                    sortdata.playerid
+                                                                                )
+                                                                                SetEntityCoords(cache.ped, to)
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("bring"),
+                                                                            icon = "map-location-dot",
+                                                                            onSelect = function()
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:bringPlayer",
+                                                                                    nil,
+                                                                                    sortdata.playerid
+                                                                                )
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("reply"),
+                                                                            icon = "reply",
+                                                                            onSelect = function()
+                                                                                local message =
+                                                                                    lib.inputDialog(
+                                                                                    locale(
+                                                                                        "replyTitle",
+                                                                                        sortdata.playername
+                                                                                    ),
+                                                                                    {
+                                                                                        {
+                                                                                            type = "textarea",
+                                                                                            label = locale(
+                                                                                                "replyLabel"
+                                                                                            ),
+                                                                                            description = locale(
+                                                                                                "replyDesc"
+                                                                                            ),
+                                                                                            required = true,
+                                                                                            min = 1,
+                                                                                            max = 128,
+                                                                                            placeholder = locale(
+                                                                                                "replyPlaceholder"
+                                                                                            )
+                                                                                        }
+                                                                                    }
+                                                                                )
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:messagePlayer",
+                                                                                    nil,
+                                                                                    sortdata.playerid,
+                                                                                    sortdata.reportid,
+                                                                                    message[1]
+                                                                                )
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("delete"),
+                                                                            icon = "trash-alt",
+                                                                            onSelect = function()
+                                                                                local confirm =
+                                                                                    lib.alertDialog(
+                                                                                    {
+                                                                                        header = locale(
+                                                                                            "deleteConfirmTitle"
+                                                                                        ),
+                                                                                        content = locale(
+                                                                                            "deleteConfirmDesc",
+                                                                                            sortdata.reportid,
+                                                                                            sortdata.playername
+                                                                                        ),
+                                                                                        centered = true,
+                                                                                        cancel = true
+                                                                                    }
+                                                                                )
+                                                                                if confirm == "confirm" then
+                                                                                    lib.callback.await(
+                                                                                        "wx_reports:deleteReport",
+                                                                                        nil,
+                                                                                        rid
+                                                                                    )
+                                                                                end
+                                                                            end
+                                                                        },
+                                                                        {
+                                                                            title = locale("markComplete"),
+                                                                            icon = "circle-check",
+                                                                            onSelect = function()
+                                                                                lib.callback.await(
+                                                                                    "wx_reports:completeReport",
+                                                                                    nil,
+                                                                                    rid
+                                                                                )
+                                                                            end
+                                                                        }
+                                                                    }
+                                                                }
+                                                            )
+                                                            lib.showContext("reportactions_" .. rid)
+                                                        end
+                                                    }
+                                                )
+                                            end
+                                        end
+                                        lib.registerContext(
+                                            {
+                                                id = "sortedReports",
+                                                title = locale("sortedReports"),
+                                                options = sortopt
+                                            }
+                                        )
+                                        lib.showContext("sortedReports")
+                                    end
+                                end
+                            }
+                        )
+                    end
+                    for k, v in pairs(reports) do
+                        
+                        if v.status == locale("completed") then
+                            table.insert(
+                                completed,
+                                {
+                                    title = ("[#%s] %s"):format(v.reportid, v.title),
+                                    description = ('"%s"'):format(v.message),
+                                    metadata = {
+                                        {label = locale("receivedAt"), value = v.time},
+                                        {label = locale("playerId"), value = v.playerid},
+                                        {label = locale("playerName"), value = v.playername},
+                                        {label = locale("admin"), value = v.admin},
+                                        {label = locale("status"), value = v.status}
+                                    },
+                                    onSelect = function()
+                                        lib.registerContext(
+                                            {
+                                                id = "reportactions_" .. v.reportid,
+                                                title = locale("completedReports"),
+                                                menu = "adminreports",
+                                                options = {
+                                                    {
+                                                        title = locale("reopen"),
+                                                        icon = "arrow-rotate-left",
+                                                        onSelect = function()
+                                                            lib.callback.await(
+                                                                "wx_reports:reopenReport",
+                                                                nil,
+                                                                v.reportid
+                                                            )
+                                                        end
+                                                    },
+                                                    {
+                                                        title = locale("teleport"),
+                                                        icon = "street-view",
+                                                        onSelect = function()
+                                                            local to =
+                                                                lib.callback.await(
+                                                                "wx_reports:getCoords",
+                                                                nil,
+                                                                v.playerid
+                                                            )
+                                                            SetEntityCoords(cache.ped, to)
+                                                        end
+                                                    },
+                                                    {
+                                                        title = locale("bring"),
+                                                        icon = "map-location-dot",
+                                                        onSelect = function()
+                                                            lib.callback.await(
+                                                                "wx_reports:bringPlayer",
+                                                                nil,
+                                                                v.playerid
+                                                            )
+                                                        end
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        lib.showContext("reportactions_" .. v.reportid)
+                                    end
+                                }
+                            )
+                            
+                        else
+                            if v.admin ~= locale("none") then
+                                table.insert(
+                                    opt,
+                                    {
+                                        title = ("[#%s] %s"):format(v.reportid, v.title),
+                                        description = ("[%s] %s: '%s'"):format(
+                                            v.playerid,
+                                            v.playername,
+                                            v.message
+                                        ),
+                                        icon = "user-tie",
+                                        metadata = {
+                                            {label = locale("receivedAt"), value = v.time},
+                                            {label = locale("playerId"), value = v.playerid},
+                                            {label = locale("playerName"), value = v.playername},
+                                            {label = locale("admin"), value = v.admin},
+                                            {label = locale("status"), value = v.status}
+                                        },
+                                        onSelect = function()
+                                            local rid = v.reportid
+                                            lib.registerContext(
+                                                {
+                                                    id = "reportactions_" .. v.reportid,
+                                                    title = locale("manageReport", rid),
+                                                    menu = "adminreports",
+                                                    options = {
+                                                        {
+                                                            title = locale("take"),
+                                                            icon = "handshake-simple",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:takeReport",
+                                                                    nil,
+                                                                    v.reportid
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("teleport"),
+                                                            icon = "street-view",
+                                                            onSelect = function()
+                                                                local to =
+                                                                    lib.callback.await(
+                                                                    "wx_reports:getCoords",
+                                                                    nil,
+                                                                    v.playerid
+                                                                )
+                                                                SetEntityCoords(cache.ped, to)
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("bring"),
+                                                            icon = "map-location-dot",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:bringPlayer",
+                                                                    nil,
+                                                                    v.playerid
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("reply"),
+                                                            icon = "reply",
+                                                            onSelect = function()
+                                                                local message =
+                                                                    lib.inputDialog(
+                                                                    locale("replyTitle", v.playername),
+                                                                    {
+                                                                        {
+                                                                            type = "textarea",
+                                                                            label = locale("replyLabel"),
+                                                                            description = locale("replyDesc"),
+                                                                            required = true,
+                                                                            min = 1,
+                                                                            max = 128,
+                                                                            placeholder = locale(
+                                                                                "replyPlaceholder"
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                )
+                                                                lib.callback.await(
+                                                                    "wx_reports:messagePlayer",
+                                                                    nil,
+                                                                    v.playerid,
+                                                                    v.reportid,
+                                                                    message[1]
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("delete"),
+                                                            icon = "trash-alt",
+                                                            onSelect = function()
+                                                                local confirm =
+                                                                    lib.alertDialog(
+                                                                    {
+                                                                        header = locale("deleteConfirmTitle"),
+                                                                        content = locale(
+                                                                            "deleteConfirmDesc",
+                                                                            v.reportid,
+                                                                            v.playername
+                                                                        ),
+                                                                        centered = true,
+                                                                        cancel = true
+                                                                    }
+                                                                )
+                                                                if confirm == "confirm" then
+                                                                    lib.callback.await(
+                                                                        "wx_reports:deleteReport",
+                                                                        nil,
+                                                                        rid
+                                                                    )
+                                                                end
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("markComplete"),
+                                                            icon = "circle-check",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:completeReport",
+                                                                    nil,
+                                                                    rid
+                                                                )
+                                                            end
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                            lib.showContext("reportactions_" .. rid)
+                                        end
+                                    }
+                                )
+                            else
+                                table.insert(
+                                    opt,
+                                    {
+                                        title = ("[#%s] %s"):format(v.reportid, v.title),
+                                        description = ("[%s] %s: '%s'"):format(
+                                            v.playerid,
+                                            v.playername,
+                                            v.message
+                                        ),
+                                        metadata = {
+                                            {label = locale("receivedAt"), value = v.time},
+                                            {label = locale("playerId"), value = v.playerid},
+                                            {label = locale("playerName"), value = v.playername},
+                                            {label = locale("admin"), value = v.admin},
+                                            {label = locale("status"), value = v.status}
+                                        },
+                                        onSelect = function()
+                                            local rid = v.reportid
+                                            lib.registerContext(
+                                                {
+                                                    id = "reportactions_" .. v.reportid,
+                                                    title = locale("manageReport", rid),
+                                                    menu = "adminreports",
+                                                    options = {
+                                                        {
+                                                            title = locale("take"),
+                                                            icon = "handshake-simple",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:takeReport",
+                                                                    nil,
+                                                                    v.reportid
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("teleport"),
+                                                            icon = "street-view",
+                                                            onSelect = function()
+                                                                local to =
+                                                                    lib.callback.await(
+                                                                    "wx_reports:getCoords",
+                                                                    nil,
+                                                                    v.playerid
+                                                                )
+                                                                SetEntityCoords(cache.ped, to)
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("bring"),
+                                                            icon = "map-location-dot",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:bringPlayer",
+                                                                    nil,
+                                                                    v.playerid
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("reply"),
+                                                            icon = "reply",
+                                                            onSelect = function()
+                                                                local message =
+                                                                    lib.inputDialog(
+                                                                    locale("replyTitle", v.playername),
+                                                                    {
+                                                                        {
+                                                                            type = "textarea",
+                                                                            label = locale("replyLabel"),
+                                                                            description = locale("replyDesc"),
+                                                                            required = true,
+                                                                            min = 1,
+                                                                            max = 128,
+                                                                            placeholder = locale(
+                                                                                "replyPlaceholder"
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                )
+                                                                lib.callback.await(
+                                                                    "wx_reports:messagePlayer",
+                                                                    nil,
+                                                                    v.playerid,
+                                                                    v.reportid,
+                                                                    message[1]
+                                                                )
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("delete"),
+                                                            icon = "trash-alt",
+                                                            onSelect = function()
+                                                                local confirm =
+                                                                    lib.alertDialog(
+                                                                    {
+                                                                        header = locale("deleteConfirmTitle"),
+                                                                        content = locale(
+                                                                            "deleteConfirmDesc",
+                                                                            v.reportid,
+                                                                            v.playername
+                                                                        ),
+                                                                        centered = true,
+                                                                        cancel = true
+                                                                    }
+                                                                )
+                                                                if confirm == "confirm" then
+                                                                    lib.callback.await(
+                                                                        "wx_reports:deleteReport",
+                                                                        nil,
+                                                                        rid
+                                                                    )
+                                                                end
+                                                            end
+                                                        },
+                                                        {
+                                                            title = locale("markComplete"),
+                                                            icon = "circle-check",
+                                                            onSelect = function()
+                                                                lib.callback.await(
+                                                                    "wx_reports:completeReport",
+                                                                    nil,
+                                                                    rid
+                                                                )
+                                                            end
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                            lib.showContext("reportactions_" .. rid)
+                                        end
+                                    }
+                                )
+                            end
+                        end
+                    end
+                    lib.registerContext(
+                        {
+                            id = "adminreports",
+                            title = locale("allReports"),
+                            options = opt
+                        }
+                    )
+                    lib.showContext("adminreports")
+                    lib.registerContext(
+                        {
+                            id = "completed",
+                            title = locale("completedReports"),
+                            options = completed
+                        }
+                    )
+                end
+                
+            }
+        }
+    })
     lib.registerContext(
         {
             id = "reportmenu",
@@ -227,678 +951,12 @@ RegisterCommand(wx.Command,function()
                     end
                 },
                 {
-                    title = locale("allReports"),
-                    icon = "list",
-                    disabled = not isAdmin,
+                    title = "Admin Section",
+                    icon = "toolbox",
+                    menu = "reports_admins",
                     arrow = true,
-                    onBack = function()
-                        lib.showContext("reportmenu")
-                    end,
-                    onSelect = function()
-                        local reports = lib.callback.await("wx_reports:getReports")
-                        local opt = {}
-                        local completed = {}
+                },
 
-                            table.insert(
-                                opt,
-                                {
-                                    title = locale("completedReports"),
-                                    description = locale("completedReportsDesc"),
-                                    menu = "completed"
-                                }
-                            )   
-                        if #reports == 0 then
-                            opt = {
-                                {
-                                    title = locale("noReports"),
-                                    disabled = true
-                                }
-                            }
-                        else
-                            table.insert(
-                                opt,
-                                {
-                                    title = locale("sort"),
-                                    description = locale("sortDesc"),
-                                    icon = "arrow-up-1-9",
-                                    onSelect = function()
-                                        local sort =
-                                            lib.inputDialog(
-                                            locale("sort"),
-                                            {
-                                                {
-                                                    type = "number",
-                                                    label = locale("id"),
-                                                    description = locale("idDesc"),
-                                                    icon = "hashtag"
-                                                }
-                                            }
-                                        )
-                                        local sortopt = {}
-                                        local sortedreports =
-                                            lib.callback.await("wx_reports:getSortedReports", nil, sort[1])
-                                        print(json.encode(sortedreports, {indent = true}))
-                                        if #sortedreports == 0 then
-                                            table.insert(
-                                                sortopt,
-                                                {
-                                                    title = locale("noReportsFound"),
-                                                    disabled = true
-                                                }
-                                            )
-                                            lib.registerContext(
-                                                {
-                                                    id = "sortedReports",
-                                                    title = locale("sortedReports"),
-                                                    options = sortopt
-                                                }
-                                            )
-                                            lib.showContext("sortedReports")
-                                        else
-                                            for _, sortdata in pairs(sortedreports) do
-                                                if sortdata.status == locale("completed") then
-                                                    table.insert(
-                                                        sortopt,
-                                                        {
-                                                            title = ("[#%s] %s"):format(
-                                                                sortdata.reportid,
-                                                                sortdata.title
-                                                            ),
-                                                            description = ('"%s"'):format(sortdata.message),
-                                                            metadata = {
-                                                                {
-                                                                    label = locale("receivedAt"),
-                                                                    value = sortdata.time
-                                                                },
-                                                                {
-                                                                    label = locale("playerId"),
-                                                                    value = sortdata.playerid
-                                                                },
-                                                                {
-                                                                    label = locale("playerName"),
-                                                                    value = sortdata.playername
-                                                                },
-                                                                {label = locale("admin"), value = sortdata.admin},
-                                                                {label = locale("status"), value = sortdata.status}
-                                                            },
-                                                            onSelect = function()
-                                                                lib.registerContext(
-                                                                    {
-                                                                        id = "reportactions_" .. sortdata.reportid,
-                                                                        title = locale("completedReports"),
-                                                                        menu = "adminreports",
-                                                                        options = {
-                                                                            {
-                                                                                title = locale("reopen"),
-                                                                                icon = "arrow-rotate-left",
-                                                                                onSelect = function()
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:reopenReport",
-                                                                                        nil,
-                                                                                        sortdata.reportid
-                                                                                    )
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("teleport"),
-                                                                                icon = "street-view",
-                                                                                onSelect = function()
-                                                                                    local to =
-                                                                                        lib.callback.await(
-                                                                                        "wx_reports:getCoords",
-                                                                                        nil,
-                                                                                        sortdata.playerid
-                                                                                    )
-                                                                                    SetEntityCoords(cache.ped, to)
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("bring"),
-                                                                                icon = "map-location-dot",
-                                                                                onSelect = function()
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:bringPlayer",
-                                                                                        nil,
-                                                                                        sortdata.playerid
-                                                                                    )
-                                                                                end
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                )
-                                                                lib.showContext(
-                                                                    "reportactions_" .. sortdata.reportid
-                                                                )
-                                                            end
-                                                        }
-                                                    )
-                                                else
-                                                    table.insert(
-                                                        sortopt,
-                                                        {
-                                                            title = ("[#%s] %s"):format(
-                                                                sortdata.reportid,
-                                                                sortdata.title
-                                                            ),
-                                                            description = ("[%s] %s: '%s'"):format(
-                                                                sortdata.playerid,
-                                                                sortdata.playername,
-                                                                sortdata.message
-                                                            ),
-                                                            icon = "user-tie",
-                                                            metadata = {
-                                                                {
-                                                                    label = locale("receivedAt"),
-                                                                    value = sortdata.time
-                                                                },
-                                                                {
-                                                                    label = locale("playerId"),
-                                                                    value = sortdata.playerid
-                                                                },
-                                                                {
-                                                                    label = locale("playerName"),
-                                                                    value = sortdata.playername
-                                                                },
-                                                                {label = locale("admin"), value = sortdata.admin},
-                                                                {label = locale("status"), value = sortdata.status}
-                                                            },
-                                                            onSelect = function()
-                                                                local rid = sortdata.reportid
-                                                                lib.registerContext(
-                                                                    {
-                                                                        id = "reportactions_" .. sortdata.reportid,
-                                                                        title = locale("manageReport", rid),
-                                                                        menu = "adminreports",
-                                                                        options = {
-                                                                            {
-                                                                                title = locale("take"),
-                                                                                icon = "handshake-simple",
-                                                                                onSelect = function()
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:takeReport",
-                                                                                        nil,
-                                                                                        sortdata.reportid
-                                                                                    )
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("teleport"),
-                                                                                icon = "street-view",
-                                                                                onSelect = function()
-                                                                                    local to =
-                                                                                        lib.callback.await(
-                                                                                        "wx_reports:getCoords",
-                                                                                        nil,
-                                                                                        sortdata.playerid
-                                                                                    )
-                                                                                    SetEntityCoords(cache.ped, to)
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("bring"),
-                                                                                icon = "map-location-dot",
-                                                                                onSelect = function()
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:bringPlayer",
-                                                                                        nil,
-                                                                                        sortdata.playerid
-                                                                                    )
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("reply"),
-                                                                                icon = "reply",
-                                                                                onSelect = function()
-                                                                                    local message =
-                                                                                        lib.inputDialog(
-                                                                                        locale(
-                                                                                            "replyTitle",
-                                                                                            sortdata.playername
-                                                                                        ),
-                                                                                        {
-                                                                                            {
-                                                                                                type = "textarea",
-                                                                                                label = locale(
-                                                                                                    "replyLabel"
-                                                                                                ),
-                                                                                                description = locale(
-                                                                                                    "replyDesc"
-                                                                                                ),
-                                                                                                required = true,
-                                                                                                min = 1,
-                                                                                                max = 128,
-                                                                                                placeholder = locale(
-                                                                                                    "replyPlaceholder"
-                                                                                                )
-                                                                                            }
-                                                                                        }
-                                                                                    )
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:messagePlayer",
-                                                                                        nil,
-                                                                                        sortdata.playerid,
-                                                                                        sortdata.reportid,
-                                                                                        message[1]
-                                                                                    )
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("delete"),
-                                                                                icon = "trash-alt",
-                                                                                onSelect = function()
-                                                                                    local confirm =
-                                                                                        lib.alertDialog(
-                                                                                        {
-                                                                                            header = locale(
-                                                                                                "deleteConfirmTitle"
-                                                                                            ),
-                                                                                            content = locale(
-                                                                                                "deleteConfirmDesc",
-                                                                                                sortdata.reportid,
-                                                                                                sortdata.playername
-                                                                                            ),
-                                                                                            centered = true,
-                                                                                            cancel = true
-                                                                                        }
-                                                                                    )
-                                                                                    if confirm == "confirm" then
-                                                                                        lib.callback.await(
-                                                                                            "wx_reports:deleteReport",
-                                                                                            nil,
-                                                                                            rid
-                                                                                        )
-                                                                                    end
-                                                                                end
-                                                                            },
-                                                                            {
-                                                                                title = locale("markComplete"),
-                                                                                icon = "circle-check",
-                                                                                onSelect = function()
-                                                                                    lib.callback.await(
-                                                                                        "wx_reports:completeReport",
-                                                                                        nil,
-                                                                                        rid
-                                                                                    )
-                                                                                end
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                )
-                                                                lib.showContext("reportactions_" .. rid)
-                                                            end
-                                                        }
-                                                    )
-                                                end
-                                            end
-                                            lib.registerContext(
-                                                {
-                                                    id = "sortedReports",
-                                                    title = locale("sortedReports"),
-                                                    options = sortopt
-                                                }
-                                            )
-                                            lib.showContext("sortedReports")
-                                        end
-                                    end
-                                }
-                            )
-                        end
-                        for k, v in pairs(reports) do
-                            
-                            if v.status == locale("completed") then
-                                table.insert(
-                                    completed,
-                                    {
-                                        title = ("[#%s] %s"):format(v.reportid, v.title),
-                                        description = ('"%s"'):format(v.message),
-                                        metadata = {
-                                            {label = locale("receivedAt"), value = v.time},
-                                            {label = locale("playerId"), value = v.playerid},
-                                            {label = locale("playerName"), value = v.playername},
-                                            {label = locale("admin"), value = v.admin},
-                                            {label = locale("status"), value = v.status}
-                                        },
-                                        onSelect = function()
-                                            lib.registerContext(
-                                                {
-                                                    id = "reportactions_" .. v.reportid,
-                                                    title = locale("completedReports"),
-                                                    menu = "adminreports",
-                                                    options = {
-                                                        {
-                                                            title = locale("reopen"),
-                                                            icon = "arrow-rotate-left",
-                                                            onSelect = function()
-                                                                lib.callback.await(
-                                                                    "wx_reports:reopenReport",
-                                                                    nil,
-                                                                    v.reportid
-                                                                )
-                                                            end
-                                                        },
-                                                        {
-                                                            title = locale("teleport"),
-                                                            icon = "street-view",
-                                                            onSelect = function()
-                                                                local to =
-                                                                    lib.callback.await(
-                                                                    "wx_reports:getCoords",
-                                                                    nil,
-                                                                    v.playerid
-                                                                )
-                                                                SetEntityCoords(cache.ped, to)
-                                                            end
-                                                        },
-                                                        {
-                                                            title = locale("bring"),
-                                                            icon = "map-location-dot",
-                                                            onSelect = function()
-                                                                lib.callback.await(
-                                                                    "wx_reports:bringPlayer",
-                                                                    nil,
-                                                                    v.playerid
-                                                                )
-                                                            end
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                            lib.showContext("reportactions_" .. v.reportid)
-                                        end
-                                    }
-                                )
-                                
-                            else
-                                if v.admin ~= locale("none") then
-                                    table.insert(
-                                        opt,
-                                        {
-                                            title = ("[#%s] %s"):format(v.reportid, v.title),
-                                            description = ("[%s] %s: '%s'"):format(
-                                                v.playerid,
-                                                v.playername,
-                                                v.message
-                                            ),
-                                            icon = "user-tie",
-                                            metadata = {
-                                                {label = locale("receivedAt"), value = v.time},
-                                                {label = locale("playerId"), value = v.playerid},
-                                                {label = locale("playerName"), value = v.playername},
-                                                {label = locale("admin"), value = v.admin},
-                                                {label = locale("status"), value = v.status}
-                                            },
-                                            onSelect = function()
-                                                local rid = v.reportid
-                                                lib.registerContext(
-                                                    {
-                                                        id = "reportactions_" .. v.reportid,
-                                                        title = locale("manageReport", rid),
-                                                        menu = "adminreports",
-                                                        options = {
-                                                            {
-                                                                title = locale("take"),
-                                                                icon = "handshake-simple",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:takeReport",
-                                                                        nil,
-                                                                        v.reportid
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("teleport"),
-                                                                icon = "street-view",
-                                                                onSelect = function()
-                                                                    local to =
-                                                                        lib.callback.await(
-                                                                        "wx_reports:getCoords",
-                                                                        nil,
-                                                                        v.playerid
-                                                                    )
-                                                                    SetEntityCoords(cache.ped, to)
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("bring"),
-                                                                icon = "map-location-dot",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:bringPlayer",
-                                                                        nil,
-                                                                        v.playerid
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("reply"),
-                                                                icon = "reply",
-                                                                onSelect = function()
-                                                                    local message =
-                                                                        lib.inputDialog(
-                                                                        locale("replyTitle", v.playername),
-                                                                        {
-                                                                            {
-                                                                                type = "textarea",
-                                                                                label = locale("replyLabel"),
-                                                                                description = locale("replyDesc"),
-                                                                                required = true,
-                                                                                min = 1,
-                                                                                max = 128,
-                                                                                placeholder = locale(
-                                                                                    "replyPlaceholder"
-                                                                                )
-                                                                            }
-                                                                        }
-                                                                    )
-                                                                    lib.callback.await(
-                                                                        "wx_reports:messagePlayer",
-                                                                        nil,
-                                                                        v.playerid,
-                                                                        v.reportid,
-                                                                        message[1]
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("delete"),
-                                                                icon = "trash-alt",
-                                                                onSelect = function()
-                                                                    local confirm =
-                                                                        lib.alertDialog(
-                                                                        {
-                                                                            header = locale("deleteConfirmTitle"),
-                                                                            content = locale(
-                                                                                "deleteConfirmDesc",
-                                                                                v.reportid,
-                                                                                v.playername
-                                                                            ),
-                                                                            centered = true,
-                                                                            cancel = true
-                                                                        }
-                                                                    )
-                                                                    if confirm == "confirm" then
-                                                                        lib.callback.await(
-                                                                            "wx_reports:deleteReport",
-                                                                            nil,
-                                                                            rid
-                                                                        )
-                                                                    end
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("markComplete"),
-                                                                icon = "circle-check",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:completeReport",
-                                                                        nil,
-                                                                        rid
-                                                                    )
-                                                                end
-                                                            }
-                                                        }
-                                                    }
-                                                )
-                                                lib.showContext("reportactions_" .. rid)
-                                            end
-                                        }
-                                    )
-                                else
-                                    table.insert(
-                                        opt,
-                                        {
-                                            title = ("[#%s] %s"):format(v.reportid, v.title),
-                                            description = ("[%s] %s: '%s'"):format(
-                                                v.playerid,
-                                                v.playername,
-                                                v.message
-                                            ),
-                                            metadata = {
-                                                {label = locale("receivedAt"), value = v.time},
-                                                {label = locale("playerId"), value = v.playerid},
-                                                {label = locale("playerName"), value = v.playername},
-                                                {label = locale("admin"), value = v.admin},
-                                                {label = locale("status"), value = v.status}
-                                            },
-                                            onSelect = function()
-                                                local rid = v.reportid
-                                                lib.registerContext(
-                                                    {
-                                                        id = "reportactions_" .. v.reportid,
-                                                        title = locale("manageReport", rid),
-                                                        menu = "adminreports",
-                                                        options = {
-                                                            {
-                                                                title = locale("take"),
-                                                                icon = "handshake-simple",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:takeReport",
-                                                                        nil,
-                                                                        v.reportid
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("teleport"),
-                                                                icon = "street-view",
-                                                                onSelect = function()
-                                                                    local to =
-                                                                        lib.callback.await(
-                                                                        "wx_reports:getCoords",
-                                                                        nil,
-                                                                        v.playerid
-                                                                    )
-                                                                    SetEntityCoords(cache.ped, to)
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("bring"),
-                                                                icon = "map-location-dot",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:bringPlayer",
-                                                                        nil,
-                                                                        v.playerid
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("reply"),
-                                                                icon = "reply",
-                                                                onSelect = function()
-                                                                    local message =
-                                                                        lib.inputDialog(
-                                                                        locale("replyTitle", v.playername),
-                                                                        {
-                                                                            {
-                                                                                type = "textarea",
-                                                                                label = locale("replyLabel"),
-                                                                                description = locale("replyDesc"),
-                                                                                required = true,
-                                                                                min = 1,
-                                                                                max = 128,
-                                                                                placeholder = locale(
-                                                                                    "replyPlaceholder"
-                                                                                )
-                                                                            }
-                                                                        }
-                                                                    )
-                                                                    lib.callback.await(
-                                                                        "wx_reports:messagePlayer",
-                                                                        nil,
-                                                                        v.playerid,
-                                                                        v.reportid,
-                                                                        message[1]
-                                                                    )
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("delete"),
-                                                                icon = "trash-alt",
-                                                                onSelect = function()
-                                                                    local confirm =
-                                                                        lib.alertDialog(
-                                                                        {
-                                                                            header = locale("deleteConfirmTitle"),
-                                                                            content = locale(
-                                                                                "deleteConfirmDesc",
-                                                                                v.reportid,
-                                                                                v.playername
-                                                                            ),
-                                                                            centered = true,
-                                                                            cancel = true
-                                                                        }
-                                                                    )
-                                                                    if confirm == "confirm" then
-                                                                        lib.callback.await(
-                                                                            "wx_reports:deleteReport",
-                                                                            nil,
-                                                                            rid
-                                                                        )
-                                                                    end
-                                                                end
-                                                            },
-                                                            {
-                                                                title = locale("markComplete"),
-                                                                icon = "circle-check",
-                                                                onSelect = function()
-                                                                    lib.callback.await(
-                                                                        "wx_reports:completeReport",
-                                                                        nil,
-                                                                        rid
-                                                                    )
-                                                                end
-                                                            }
-                                                        }
-                                                    }
-                                                )
-                                                lib.showContext("reportactions_" .. rid)
-                                            end
-                                        }
-                                    )
-                                end
-                            end
-                        end
-                        lib.registerContext(
-                            {
-                                id = "adminreports",
-                                title = locale("allReports"),
-                                options = opt
-                            }
-                        )
-                        lib.showContext("adminreports")
-                        lib.registerContext(
-                            {
-                                id = "completed",
-                                title = locale("completedReports"),
-                                options = completed
-                            }
-                        )
-                    end
-                    
-                }
             }
         }
     )

@@ -1,3 +1,6 @@
+lib.locale()
+local reports = {}
+
 local function isAdmin(playerId)
     for k,v in pairs(wx.AllowedIds) do
         for _,id in pairs(GetPlayerIdentifiers(playerId)) do
@@ -22,17 +25,64 @@ lib.callback.register(
     end
 )
 
-lib.locale()
 
-local reports = {}
 function Notify(id, data)
     TriggerClientEvent("ox_lib:notify", id, data)
+end
+
+function CheckSQL(id)
+    local identifier = GetPlayerIdentifierByType(id,'license')
+    local response = MySQL.query.await('SELECT * FROM `wx_reports` WHERE `admin_identifier` = ?', {
+        identifier
+    })
+    if #response == 0 then
+        return MySQL.insert.await('INSERT INTO `wx_reports` (admin_identifier, admin_name) VALUES (?, ?)', {
+            identifier, GetPlayerName(id)
+        })
+    end
 end
 
 lib.callback.register(
     "wx_reports:getCoords",
     function(source, target)
         return GetEntityCoords(GetPlayerPed(target))
+    end
+)
+
+lib.callback.register(
+    "wx_reports:getLicense",
+    function(source, target)
+        return GetPlayerIdentifierByType(source,'license')
+    end
+)
+
+lib.callback.register(
+    "wx_reports:getStats",
+    function(source)
+        local toReturn = {}
+        CheckSQL(source)
+        local identifier = GetPlayerIdentifierByType(source,'license')
+        local response = MySQL.query.await('SELECT * FROM `wx_reports` WHERE `admin_identifier` = ?', {
+            identifier
+        })
+        for k,v in pairs(response) do
+            if v.admin_identifier == identifier then
+                if v.admin_name ~= GetPlayerName(source) then
+                    MySQL.update.await('UPDATE wx_reports SET admin_name = ? WHERE admin_identifier = ?', {
+                        GetPlayerName(source), identifier
+                    })
+                end
+            end
+            table.insert(toReturn,{
+                adminName = v.admin_name,
+                license = v.admin_identifier,
+                resolved = v.resolved_reports,
+                replied = v.replied_reports
+            })
+        end
+        return toReturn
+
+
     end
 )
 
@@ -103,7 +153,7 @@ lib.callback.register(
                     },
                     {
                         ["name"] = "Reporter Name",
-                        ["value"] = GetPlayerName(v.playerid),
+                        ["value"] = GetPlayerName(target),
                         ["inline"] = true
                     },
                     {
@@ -114,6 +164,9 @@ lib.callback.register(
                 }
             }
         )
+        MySQL.update.await('UPDATE wx_reports SET replied_reports = replied_reports + 1 WHERE admin_identifier = ?', {
+            GetPlayerIdentifierByType(source,'license')
+        })
         TriggerClientEvent("wx_reports:sound", target)
     end
 )
@@ -257,6 +310,9 @@ lib.callback.register(
                         }
                     }
                 )
+                MySQL.update.await('UPDATE wx_reports SET resolved_reports = resolved_reports + 1 WHERE admin_identifier = ?', {
+                    GetPlayerIdentifierByType(source,'license')
+                })
                 break
             end
         end
